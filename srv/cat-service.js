@@ -15,6 +15,24 @@ module.exports = (srv) => {
 		}
 	}
 
+	function translateToS4(odataFieldName) {
+		switch (odataFieldName) {
+		case "BusinessPartner":
+			return "BusinessPartner";
+		case "Category":
+			return "businessPartnerCategory";
+		case "FullName":
+			return "businessPartnerFullName";
+		case "UUID":
+			return "BusinessPartnerUUID";
+		case "Grouping":
+			return "businessPartnerGrouping";
+		default:
+			return null;
+		}
+
+	}
+
 	const cds = require("@sap/cds");
 	const xsenv = require("@sap/xsenv");
 	const services = xsenv.readCFServices();
@@ -31,24 +49,34 @@ module.exports = (srv) => {
 			const top = getSafe(() => req.query.SELECT.limit.rows.val, 100);
 			const skip = getSafe(() => req.query.SELECT.limit.offset.val, 0);
 			var bp = require("@sap/cloud-sdk-vdm-business-partner-service");
-			let businessPartners = await bp.BusinessPartner.requestBuilder()
+			let bpRequest = await bp.BusinessPartner.requestBuilder()
 				.getAll()
 				.top(top)
 				.skip(skip)
 				.withCustomHeaders({
 					apikey: apiKey
-				})
-				.execute({
-					url: s4Url
 				});
+			//  bpRequest.filter(bp.BusinessPartner.BUSINESS_PARTNER.equals("1000000"));
+
+			let selectObj = [];
+			if (req.query.SELECT.columns) {
+				for (let selectItem of req.query.SELECT.columns) {
+					selectObj.push(translateToS4(selectItem));
+				}
+				bpRequest.select(selectObj);
+			}
+
+			let businessPartners = await bpRequest.execute({
+				url: s4Url
+			});
 			let data = [];
 			for (let each of businessPartners) {
 				data.push({
-					"BusinessPartner": each.businessPartner,
-					"Category": each.businessPartnerCategory,
-					"FullName": each.businessPartnerFullName,
-					"UUID": each.businessPartnerUuid,
-					"Grouping": each.businessPartnerGrouping
+					"BusinessPartner": each.businessPartner, //BUSINESS_PARTNER
+					"Category": each.businessPartnerCategory, //BUSINESS_PARTNER_CATEGORY
+					"FullName": each.businessPartnerFullName, //BUSINESS_PARTNER_FULL_NAME
+					"UUID": each.businessPartnerUuid, //BUSINESS_PARTNER_UUID
+					"Grouping": each.businessPartnerGrouping //BUSINESS_PARTNER_GROUPING
 				});
 			}
 			req.reply(data);
